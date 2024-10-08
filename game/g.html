@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Explorer Game - Asteroid Blasts Planets</title>
+    <style>
+        /* Global styling */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: black;
+            color: white;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: url('https://www.w3schools.com/w3images/stars.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+
+        #gameCanvas {
+            display: block;
+            background-color: transparent;
+            cursor: crosshair;
+        }
+
+        #planet-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            width: 250px;
+            display: none;
+        }
+
+        #planet-info h2 {
+            margin: 0;
+        }
+
+        #planet-info p {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            font-size: 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #welcome-note {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            z-index: 10;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+            display: none;
+        }
+
+        #scoreboard {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 18px;
+        }
+
+        #restart-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Pause button */
+        #pause-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <button id="start-button" onclick="startGame()">Start Game</button>
+        <button id="pause-button" onclick="pauseGame()" style="display:none;">Pause</button>
+        <div id="planet-info">
+            <h2 id="planetName"></h2>
+            <p id="planetDetails"></p>
+            <button id="restart-button" onclick="continueGame()">Continue</button>
+        </div>
+        <div id="welcome-note">
+            <h2>Welcome to the Space Explorer Game!</h2>
+            <p>Use the arrow keys to navigate the asteroid and blast the planets.</p>
+            <p>Can you name them all?</p>
+        </div>
+        <div id="scoreboard">
+            Score: <span id="score">0</span>
+        </div>
+        <div id="game-over">
+            <h2>Game Over!</h2>
+            <p>Your final score: <span id="final-score">0</span></p>
+            <button onclick="restartGame()">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize the canvas to fill the window
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            restartAsteroid();
+        }
+
+        const asteroid = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            speed: 5,
+            size: 20,
+            color: 'white',
+        };
+
+        let score = 0;
+        let gameStarted = false;
+        let collisionCount = 0;
+        let keys = {};
+        let isPaused = false;
+        let canMove = true;  // Allow movement by default
+
+        const planets = [
+            { name: 'Mercury', x: 200, y: 300, radius: 30, color: 'gray', facts: 'Mercury is the smallest planet and closest to the Sun.', alive: true },
+            { name: 'Venus', x: 400, y: 300, radius: 40, color: 'yellow', facts: 'Venus is the hottest planet in the solar system.', alive: true },
+            { name: 'Earth', x: 600, y: 300, radius: 45, color: 'blue', facts: 'Earth is the only planet known to support life.', alive: true },
+            { name: 'Mars', x: 800, y: 300, radius: 35, color: 'red', facts: 'Mars is called the "Red Planet".', alive: true },
+            { name: 'Jupiter', x: 1000, y: 300, radius: 60, color: 'orange', facts: 'Jupiter is the largest planet with a giant red storm.', alive: true },
+            { name: 'Saturn', x: 1200, y: 300, radius: 55, color: 'lightyellow', facts: 'Saturn has a spectacular ring system.', alive: true },
+            { name: 'Uranus', x: 1400, y: 300, radius: 50, color: 'lightblue', facts: 'Uranus rotates on its side.', alive: true },
+            { name: 'Neptune', x: 1600, y: 300, radius: 50, color: 'blue', facts: 'Neptune has strong supersonic winds.', alive: true }
+        ];
+
+        window.addEventListener('keydown', function (e) {
+            keys[e.key] = true;
+            if (canMove) return;
+
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                canMove = true; // Allow movement after hitting a key
+            }
+        });
+
+        window.addEventListener('keyup', function (e) {
+            keys[e.key] = false;
+        });
+
+        function updateAsteroid() {
+            if (!gameStarted || isPaused || !canMove) return;
+
+            if (keys['ArrowUp'] && asteroid.y - asteroid.size > 0) asteroid.y -= asteroid.speed;
+            if (keys['ArrowDown'] && asteroid.y + asteroid.size < canvas.height) asteroid.y += asteroid.speed;
+            if (keys['ArrowLeft'] && asteroid.x - asteroid.size > 0) asteroid.x -= asteroid.speed;
+            if (keys['ArrowRight'] && asteroid.x + asteroid.size < canvas.width) asteroid.x += asteroid.speed;
+
+            checkAsteroidProximity();
+        }
+
+        function drawAsteroid() {
+            ctx.beginPath();
+            ctx.arc(asteroid.x, asteroid.y, asteroid.size, 0, Math.PI * 2);
+            ctx.fillStyle = asteroid.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawPlanets() {
+            planets.forEach(planet => {
+                if (planet.alive) {
+                    ctx.beginPath();
+                    ctx.arc(planet.x, planet.y, planet.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = planet.color;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            });
+        }
+
+        function checkAsteroidProximity() {
+            planets.forEach(planet => {
+                const dist = Math.sqrt((asteroid.x - planet.x) ** 2 + (asteroid.y - planet.y) ** 2);
+                if (dist < asteroid.size + planet.radius && planet.alive) {
+                    planet.alive = false;
+                    showPlanetInfo(planet);
+                }
+            });
+        }
+
+        function showPlanetInfo(planet) {
+            score += 100;
+            document.getElementById('score').innerHTML = score;
+
+            setTimeout(() => {
+                const userGuess = prompt("Guess the name of the planet:");
+                if (userGuess.toLowerCase() === planet.name.toLowerCase()) {
+                    alert("Correct!");
+                    const planetInfo = document.getElementById('planet-info');
+                    const planetName = document.getElementById('planetName');
+                    const planetDetails = document.getElementById('planetDetails');
+                    planetName.innerHTML = planet.name;
+                    planetDetails.innerHTML = planet.facts;
+                    planetInfo.style.display = 'block';
+                    canMove = false;
+                } else {
+                    alert("Wrong! The correct name is " + planet.name);
+                }
+                continueGame();
+            }, 1000);
+        }
+
+        function continueGame() {
+            document.getElementById('planet-info').style.display = 'none';
+            canMove = true;
+            gameLoop();
+        }
+
+        function restartAsteroid() {
+            asteroid.x = canvas.width / 2;
+            asteroid.y = canvas.height / 2;
+        }
+
+        function gameLoop() {
+            if (!gameStarted || isPaused) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            updateAsteroid();
+            drawAsteroid();
+            drawPlanets();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            document.getElementById('start-button').style.display = 'none';
+            document.getElementById('pause-button').style.display = 'block';
+            gameStarted = true;
+            gameLoop();
+        }
+
+        function pauseGame() {
+            isPaused = !isPaused;
+            if (!isPaused) gameLoop();  // Restart the game loop when unpausing
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+    </script>
+</body>
+
+</html>
