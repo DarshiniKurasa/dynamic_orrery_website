@@ -35,3 +35,4 @@ function getAsteroidBelt(objs) {
 }
 
 export default getAsteroidBelt;
+// hi
